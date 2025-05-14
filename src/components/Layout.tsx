@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Sidebar from "./Sidebar";
 import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -17,7 +18,15 @@ const Layout = ({ children }: LayoutProps) => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+      {/* Sidebar Component with ScrollArea */}
+      <div className={cn(
+        "fixed top-0 left-0 h-full z-20 transition-transform duration-300 lg:relative",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
+        <ScrollArea className="h-screen">
+          <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+        </ScrollArea>
+      </div>
       
       {/* Overlay para fechar o sidebar em telas menores */}
       <div 
@@ -28,7 +37,7 @@ const Layout = ({ children }: LayoutProps) => {
         onClick={() => setSidebarOpen(false)}
       />
 
-      <main className="flex-1 transition-all duration-300 ease-in-out">
+      <main className="flex-1 transition-all duration-300 ease-in-out lg:ml-64">
         <div className="container mx-auto px-4 py-6">
           <button
             onClick={toggleSidebar}

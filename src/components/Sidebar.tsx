@@ -31,12 +31,7 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
   ];
 
   return (
-    <aside
-      className={cn(
-        "fixed top-0 left-0 z-20 h-full w-64 transform bg-white shadow-lg transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0",
-        isOpen ? "translate-x-0" : "-translate-x-full"
-      )}
-    >
+    <aside className="w-64 bg-white shadow-lg h-full">
       <div className="flex h-16 items-center justify-between border-b px-4">
         <h2 className="text-lg font-semibold text-gray-800">ORCID Menu</h2>
         <button
