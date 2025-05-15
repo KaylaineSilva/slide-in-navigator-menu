@@ -1,10 +1,11 @@
 
 import React from "react";
+import { Link } from "react-router-dom";
 import Layout from "../components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PencilIcon } from "lucide-react";
+import { PencilIcon, FileText } from "lucide-react";
 
 const Index = () => {
   return (
@@ -34,16 +35,21 @@ const Index = () => {
           </Card>
 
           <Card className="border-green-200 bg-green-50">
-            <CardContent className="p-6">
-              <div className="flex gap-3 items-start">
-                <div className="text-green-600 mt-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><path d="m9 11 3 3L22 4"></path></svg>
+            <CardContent className="p-6 flex items-center justify-between">
+              <div className="flex gap-3 items-center">
+                <div className="text-green-600">
+                  <FileText size={24} />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-lg">Domínios de e-mail partilhados</h2>
-                  <p className="text-sm">O domínio de e-mail <strong>usp.br</strong> está agora visível no seu registo ORCID público. Efetue a gestão dos endereços de e-mail e domínios na <span className="text-blue-500">secção E-mails e domínios</span>.</p>
+                  <h2 className="font-semibold text-lg">Trabalhos acadêmicos</h2>
+                  <p className="text-sm">Visualize todos os trabalhos deste perfil</p>
                 </div>
               </div>
+              <Link to="/trabalhos">
+                <Button className="bg-green-600 hover:bg-green-700">
+                  Ver trabalhos
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         </div>
