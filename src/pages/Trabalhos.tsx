@@ -14,6 +14,7 @@ const Trabalhos = () => {
   const [palavrasChave, setPalavrasChave] = useState<string[]>([]);
   const [tiposPublicacao, setTiposPublicacao] = useState<string[]>([]);
   const [filtrosSelecionados, setFiltrosSelecionados] = useState<string[]>([]);
+  const [bibtexMap, setBibtexMap] = useState<Record<string, string>>({});
 
   const orcid = new URLSearchParams(location.search).get("orcid");
 
@@ -49,34 +50,71 @@ const Trabalhos = () => {
     }
   }, [orcid]);
 
-  // Função para lidar com mudança nos filtros
   const toggleFiltro = (valor: string) => {
     setFiltrosSelecionados(prev =>
       prev.includes(valor) ? prev.filter(f => f !== valor) : [...prev, valor]
     );
   };
 
-  // Aplicar filtros: título inclui palavra OU tipo corresponde
+  const buscarBibtex = async (doi: string) => {
+    if (bibtexMap[doi]) return; // já carregado
+
+    try {
+      const res = await fetch(`https://doi.org/${doi}`, {
+        headers: { Accept: "application/x-bibtex" },
+      });
+      const bibtex = await res.text();
+      setBibtexMap(prev => ({ ...prev, [doi]: bibtex }));
+    } catch (err) {
+      setBibtexMap(prev => ({ ...prev, [doi]: "Erro ao obter BibTeX" }));
+    }
+  };
+
+  const copiarBibtex = async (doi: string) => {
+    if (!bibtexMap[doi]) {
+      await buscarBibtex(doi);
+    }
+    const bibtex = bibtexMap[doi];
+    if (bibtex) {
+      await navigator.clipboard.writeText(bibtex);
+      alert("BibTeX copiado para a área de transferência!");
+    }
+  };
+
+  const baixarBibtex = async (doi: string, titulo?: string) => {
+    if (!bibtexMap[doi]) {
+      await buscarBibtex(doi);
+    }
+    const bibtex = bibtexMap[doi];
+    if (bibtex) {
+      const blob = new Blob([bibtex], { type: "text/plain" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      const nomeArquivo = `${titulo?.replace(/\s+/g, "_") || doi}.bib`;
+      link.download = nomeArquivo;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   const palavrasSelecionadas = filtrosSelecionados.filter(f => palavrasChave.includes(f));
-const tiposSelecionados = filtrosSelecionados.filter(f => tiposPublicacao.includes(f));
+  const tiposSelecionados = filtrosSelecionados.filter(f => tiposPublicacao.includes(f));
 
-const trabalhosFiltrados = trabalhos.filter(t => {
-  const summary = t?.["work-summary"]?.[0];
-  const titulo = summary?.title?.title?.value?.toLowerCase() || "";
-  const tipo = summary?.type || "";
+  const trabalhosFiltrados = trabalhos.filter(t => {
+    const summary = t?.["work-summary"]?.[0];
+    const titulo = summary?.title?.title?.value?.toLowerCase() || "";
+    const tipo = summary?.type || "";
 
-  // Filtro por palavras-chave (OR dentro do grupo)
-  const passouPalavra =
-    palavrasSelecionadas.length === 0 ||
-    palavrasSelecionadas.some(p => titulo.includes(p.toLowerCase()));
+    const passouPalavra =
+      palavrasSelecionadas.length === 0 ||
+      palavrasSelecionadas.some(p => titulo.includes(p.toLowerCase()));
 
-  // Filtro por tipo (OR dentro do grupo)
-  const passouTipo =
-    tiposSelecionados.length === 0 || tiposSelecionados.includes(tipo);
+    const passouTipo =
+      tiposSelecionados.length === 0 || tiposSelecionados.includes(tipo);
 
-  // AND entre grupos
-  return passouPalavra && passouTipo;
-});
+    return passouPalavra && passouTipo;
+  });
 
   return (
     <Layout>
@@ -143,6 +181,8 @@ const trabalhosFiltrados = trabalhos.filter(t => {
               const titulo = summary?.title?.title?.value;
               const ano = summary?.["publication-date"]?.year?.value;
               const tipo = summary?.type;
+              const dois = summary?.["external-ids"]?.["external-id"] || [];
+              const doi = dois.find(id => id["external-id-type"] === "doi")?.["external-id-value"];
 
               return (
                 <Card key={idx}>
@@ -158,6 +198,32 @@ const trabalhosFiltrados = trabalhos.filter(t => {
                         </Badge>
                       )}
                     </div>
+
+                    {doi && (
+                      <div className="mt-3">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => buscarBibtex(doi)}
+                            >
+                              Citar
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="max-w-xl whitespace-pre-wrap text-sm font-mono flex flex-col gap-2">
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={() => copiarBibtex(doi)}>
+                                Copiar BibTeX
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => baixarBibtex(doi, titulo)}>
+                                Baixar BibTeX
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );

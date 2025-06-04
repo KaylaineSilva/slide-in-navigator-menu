@@ -118,7 +118,7 @@ console.log(empregosExtraidos);
         <h2 className="text-xl font-semibold flex gap-2 items-center">
           <UserIcon size={20} /> E-mails
         </h2>
-        <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+        
       </div>
       <ul className="list-disc pl-5">
         {emails.length > 0
@@ -156,7 +156,7 @@ console.log(empregosExtraidos);
               <Card><CardContent className="p-6">
                 <div className="flex justify-between mb-4">
                   <h2 className="text-xl font-semibold">Nomes</h2>
-                  <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+                  
                 </div>
                 <div className="flex justify-between">
                   <div>
@@ -172,7 +172,7 @@ console.log(empregosExtraidos);
               <Card><CardContent className="p-6">
                 <div className="flex justify-between mb-4">
                   <h2 className="text-xl font-semibold flex gap-2 items-center"><BookOpen size={20} /> Biografia</h2>
-                  <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+                  
                 </div>
                 <p>{biografia || "Nenhuma biografia disponível."}</p>
               </CardContent></Card>
@@ -182,7 +182,7 @@ console.log(empregosExtraidos);
               <Card><CardContent className="p-6">
                 <div className="flex justify-between mb-4">
                   <h2 className="text-xl font-semibold flex gap-2 items-center"><UserIcon size={20} /> Outros nomes</h2>
-                  <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+                  
                 </div>
                 <ul className="list-disc pl-5">
                   {outrosNomes.length > 0
@@ -196,7 +196,7 @@ console.log(empregosExtraidos);
               <Card><CardContent className="p-6">
                 <div className="flex justify-between mb-4">
                   <h2 className="text-xl font-semibold flex gap-2 items-center"><Tag size={20} /> Palavras-chave</h2>
-                  <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+                  
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {palavrasChave.length > 0
@@ -212,7 +212,7 @@ console.log(empregosExtraidos);
               <Card><CardContent className="p-6">
                 <div className="flex justify-between mb-4">
                   <h2 className="text-xl font-semibold flex gap-2 items-center"><MapPin size={20} /> Endereços</h2>
-                  <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+                  
                 </div>
                 <ul className="list-disc pl-5">
                   {enderecos.length > 0
@@ -229,7 +229,7 @@ console.log(empregosExtraidos);
         <h2 className="text-xl font-semibold flex gap-2 items-center">
           <Users size={20} /> Empregos
         </h2>
-        <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+        
       </div>
       <ul className="list-disc pl-5">
         {empregos.length > 0
@@ -260,7 +260,7 @@ console.log(empregosExtraidos);
               <Card><CardContent className="p-6">
                 <div className="flex justify-between mb-4">
                   <h2 className="text-xl font-semibold flex gap-2 items-center"><Users size={20} /> Afiliações</h2>
-                  <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+                  
                 </div>
                 <ul className="list-disc pl-5">
                   {afiliacoes.length > 0
