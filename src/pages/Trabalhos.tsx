@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 const Trabalhos = () => {
   const location = useLocation();
@@ -15,6 +15,9 @@ const Trabalhos = () => {
   const [tiposPublicacao, setTiposPublicacao] = useState<string[]>([]);
   const [filtrosSelecionados, setFiltrosSelecionados] = useState<string[]>([]);
   const [bibtexMap, setBibtexMap] = useState<Record<string, string>>({});
+  const [cardsExpandidos, setCardsExpandidos] = useState<Record<number, boolean>>({});
+  const [resumos, setResumos] = useState<Record<string, string>>({});
+  const [avisos, setAvisos] = useState<Record<string, boolean>>({});
 
   const orcid = new URLSearchParams(location.search).get("orcid");
 
@@ -77,7 +80,10 @@ const Trabalhos = () => {
     const bibtex = bibtexMap[doi];
     if (bibtex) {
       await navigator.clipboard.writeText(bibtex);
-      alert("BibTeX copiado para a área de transferência!");
+      setAvisos(prev => ({ ...prev, [doi]: true }));
+      setTimeout(() => {
+        setAvisos(prev => ({ ...prev, [doi]: false }));
+      }, 3000);
     }
   };
 
@@ -96,6 +102,32 @@ const Trabalhos = () => {
       link.click();
       document.body.removeChild(link);
     }
+  };
+
+  // Função para buscar resumo via CrossRef pelo DOI
+  const buscarResumo = async (doi: string) => {
+    if (resumos[doi]) return; // já tem resumo
+
+    try {
+      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, {
+        headers: { Accept: "application/json" },
+      });
+      const data = await res.json();
+      const abs = data.message.abstract || "Resumo não disponível.";
+      setResumos(prev => ({ ...prev, [doi]: abs }));
+    } catch {
+      setResumos(prev => ({ ...prev, [doi]: "Erro ao obter resumo." }));
+    }
+  };
+
+  // Controla a expansão do card e busca resumo quando expandir
+  const toggleExpandir = (idx: number) => {
+    setCardsExpandidos(prev => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const onExpandClick = (idx: number, doi?: string) => {
+    toggleExpandir(idx);
+    if (doi) buscarResumo(doi);
   };
 
   const palavrasSelecionadas = filtrosSelecionados.filter(f => palavrasChave.includes(f));
@@ -187,41 +219,82 @@ const Trabalhos = () => {
               return (
                 <Card key={idx}>
                   <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-center">
                       <div>
                         <p className="font-semibold">{titulo || "Sem título"}</p>
                         {ano && <p className="text-sm text-gray-500">Publicado em {ano}</p>}
                       </div>
-                      {tipo && (
-                        <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 capitalize">
-                          {tipo.replace(/-/g, " ")}
-                        </Badge>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        {tipo && (
+                          <Badge
+                            variant="outline"
+                            className="bg-green-50 text-green-600 border-green-200 capitalize"
+                          >
+                            {tipo.replace(/-/g, " ")}
+                          </Badge>
+                        )}
+                        <button
+                          onClick={() => onExpandClick(idx, doi)}
+                          aria-expanded={!!cardsExpandidos[idx]}
+                          aria-label={cardsExpandidos[idx] ? "Esconder resumo" : "Mostrar resumo"}
+                          className="ml-4 p-1 rounded hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          style={{
+                            transform: cardsExpandidos[idx] ? "rotate(90deg)" : "rotate(0deg)",
+                            transition: "transform 0.2s ease",
+                          }}
+                        >
+                          <ChevronRight size={20} />
+                        </button>
+                      </div>
                     </div>
 
-                    {doi && (
-                      <div className="mt-3">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => buscarBibtex(doi)}
+                    {cardsExpandidos[idx] && (
+                      <div className="mt-4 text-sm prose max-w-none">
+                        {resumos[doi] ? (
+                          <div
+                            dangerouslySetInnerHTML={{
+                              __html: resumos[doi].replace(/<\/?jats:[^>]*>/g, ""),
+                            }}
+                          />
+                        ) : (
+                          <p>Carregando resumo...</p>
+                        )}
+                        {doi && (
+                          <p className="mt-2">
+                            <a
+                              href={`https://doi.org/${doi}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 underline"
                             >
-                              Citar
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="max-w-xl whitespace-pre-wrap text-sm font-mono flex flex-col gap-2">
-                            <div className="flex gap-2">
-                              <Button size="sm" onClick={() => copiarBibtex(doi)}>
-                                Copiar BibTeX
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => baixarBibtex(doi, titulo)}>
-                                Baixar BibTeX
-                              </Button>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                              Ler artigo completo
+                            </a>
+                          </p>
+                        )}
+
+                        <div className="mt-4 flex space-x-4 items-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => copiarBibtex(doi)}
+                          >
+                            Copiar BibTeX
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => baixarBibtex(doi, titulo)}
+                          >
+                            Baixar BibTeX
+                          </Button>
+
+                          {/* Aviso de cópia */}
+                          {avisos[doi] && (
+                            <span className="ml-4 text-green-600 font-medium">
+                              Copiado!
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </CardContent>
@@ -230,7 +303,7 @@ const Trabalhos = () => {
             })}
           </div>
         ) : (
-          <p className="text-gray-600 mt-4">Nenhum trabalho encontrado com os filtros aplicados.</p>
+          <p>Nenhum trabalho encontrado para os filtros selecionados.</p>
         )}
       </div>
     </Layout>
