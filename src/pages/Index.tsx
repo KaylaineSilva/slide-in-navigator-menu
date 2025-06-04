@@ -16,38 +16,47 @@ const Index = () => {
   const [palavrasChave, setPalavrasChave] = useState([]);
   const [enderecos, setEnderecos] = useState([]);
   const [afiliacoes, setAfiliacoes] = useState([]);
+  const [emails, setEmails] = useState([]);
+  const [empregos, setEmpregos] = useState([]);
 
   const navigate = useNavigate();
   const location = useLocation();
 
   const fetchORCIDData = async (id: string) => {
-    try {
-      sessionStorage.setItem("orcid", id); // Salvar na sessão
-      navigate(`/?orcid=${id}`); // Atualiza URL
+  try {
+    sessionStorage.setItem("orcid", id);
+    navigate(`/?orcid=${id}`);
 
-      const personRes = await fetch(`https://pub.orcid.org/v3.0/${id}/person`, {
-        headers: { Accept: "application/json" },
-      });
-      const personData = await personRes.json();
+    const personRes = await fetch(`https://pub.orcid.org/v3.0/${id}/person`, {
+      headers: { Accept: "application/json" },
+    });
+    const personData = await personRes.json();
 
-      setOrcidId(id);
-      setNome(personData?.name?.["given-names"]?.value || "");
-      setSobrenome(personData?.name?.["family-name"]?.value || "");
-      setBiografia(personData?.biography?.content || "");
-      setOutrosNomes(personData?.["other-names"]?.["other-name"] || []);
-      setPalavrasChave(personData?.keywords?.keyword?.map((k) => k?.content) || []);
-      setEnderecos(personData?.addresses?.address || []);
+    setOrcidId(id);
+    setNome(personData?.name?.["given-names"]?.value || "");
+    setSobrenome(personData?.name?.["family-name"]?.value || "");
+    setBiografia(personData?.biography?.content || "");
+    setOutrosNomes(personData?.["other-names"]?.["other-name"] || []);
+    setPalavrasChave(personData?.keywords?.keyword?.map((k) => k?.content) || []);
+    setEnderecos(personData?.addresses?.address || []);
+    setEmails(personData?.emails?.email || []);
 
-      const empRes = await fetch(`https://pub.orcid.org/v3.0/${id}/employments`, {
-        headers: { Accept: "application/json" },
-      });
-      const empData = await empRes.json();
-      setAfiliacoes(empData?.["employment-summary"] || []);
-    } catch (error) {
-      console.error("Erro ao buscar dados do ORCID:", error);
-      alert("Erro ao buscar o ORCID informado.");
-    }
-  };
+    const empRes = await fetch(`https://pub.orcid.org/v3.0/${id}/employments`, {
+  headers: { Accept: "application/json" },
+});
+const empData = await empRes.json();
+
+const empregosExtraidos = empData?.["affiliation-group"]?.flatMap((grupo) =>
+  grupo?.summaries?.map((s) => s?.["employment-summary"])
+) || [];
+setEmpregos(empregosExtraidos);
+setAfiliacoes(empregosExtraidos);
+console.log(empregosExtraidos);
+  } catch (error) {
+    console.error("Erro ao buscar dados do ORCID:", error);
+    alert("Erro ao buscar o ORCID informado.");
+  }
+};
 
   // Executa ao carregar
   useEffect(() => {
@@ -101,6 +110,28 @@ const Index = () => {
                 </div>
               </CardContent>
             </Card>
+
+            <section className="scroll-mt-16 mt-6">
+  <Card>
+    <CardContent className="p-6">
+      <div className="flex justify-between mb-4">
+        <h2 className="text-xl font-semibold flex gap-2 items-center">
+          <UserIcon size={20} /> E-mails
+        </h2>
+        <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+      </div>
+      <ul className="list-disc pl-5">
+        {emails.length > 0
+          ? emails.map((email, idx) => (
+              <li key={idx}>
+                {email.email} {email.primary && "(principal)"}
+              </li>
+            ))
+          : <li>Nenhum e-mail registrado.</li>}
+      </ul>
+    </CardContent>
+  </Card>
+</section>
 
             {/* Trabalhos */}
             <Card className="border-green-200 bg-green-50 mt-6">
@@ -190,6 +221,40 @@ const Index = () => {
                 </ul>
               </CardContent></Card>
             </section>
+
+            <section className="scroll-mt-16 mt-6">
+  <Card>
+    <CardContent className="p-6">
+      <div className="flex justify-between mb-4">
+        <h2 className="text-xl font-semibold flex gap-2 items-center">
+          <Users size={20} /> Empregos
+        </h2>
+        <Button variant="ghost" size="icon"><PencilIcon className="h-5 w-5" /></Button>
+      </div>
+      <ul className="list-disc pl-5">
+        {empregos.length > 0
+          ? empregos.map((emp, idx) => {
+              const org = emp?.organization?.name || "Organização não informada";
+              const cargo = emp?.["role-title"]?.trim() || "Cargo não informado";
+              const inicio = emp?.["start-date"]?.year?.value || "?";
+              const fim = emp?.["end-date"]?.year?.value || "Atual";
+              const cidade = emp?.organization?.address?.city;
+              const pais = emp?.organization?.address?.country;
+
+              return (
+                <li key={idx}>
+                  <span className="font-medium">{org}</span> — {cargo} ({inicio} - {fim})
+                  {cidade || pais ? (
+                    <span className="text-sm text-gray-600"> — {cidade ? `${cidade}, ` : ""}{pais || ""}</span>
+                  ) : null}
+                </li>
+              );
+            })
+          : <li>Nenhum emprego registrado.</li>}
+      </ul>
+    </CardContent>
+  </Card>
+</section>
 
             <section className="scroll-mt-16 mt-6">
               <Card><CardContent className="p-6">
