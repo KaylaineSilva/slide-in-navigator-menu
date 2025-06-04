@@ -17,13 +17,12 @@ const Trabalhos = () => {
   const [bibtexMap, setBibtexMap] = useState<Record<string, string>>({});
   const [cardsExpandidos, setCardsExpandidos] = useState<Record<number, boolean>>({});
   const [resumos, setResumos] = useState<Record<string, string>>({});
-  const [avisos, setAvisos] = useState<Record<string, boolean>>({});
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
 
   const orcid = new URLSearchParams(location.search).get("orcid");
 
   useEffect(() => {
     if (orcid) {
-      // Trabalhos
       fetch(`https://pub.orcid.org/v3.0/${orcid}/works`, {
         headers: { Accept: "application/json" },
       })
@@ -32,7 +31,6 @@ const Trabalhos = () => {
           const listaTrabalhos = data["group"] || [];
           setTrabalhos(listaTrabalhos);
 
-          // Tipos de publicação
           const tipos = new Set<string>();
           listaTrabalhos.forEach(t => {
             const tipo = t?.["work-summary"]?.[0]?.type;
@@ -41,7 +39,6 @@ const Trabalhos = () => {
           setTiposPublicacao(Array.from(tipos));
         });
 
-      // Palavras-chave
       fetch(`https://pub.orcid.org/v3.0/${orcid}/person`, {
         headers: { Accept: "application/json" },
       })
@@ -59,17 +56,27 @@ const Trabalhos = () => {
     );
   };
 
-  const buscarBibtex = async (doi: string) => {
-    if (bibtexMap[doi]) return; // já carregado
+  const toggleSelecionado = (doi: string) => {
+    setSelecionados(prev => {
+      const novo = new Set(prev);
+      if (novo.has(doi)) {
+        novo.delete(doi);
+      } else {
+        novo.add(doi);
+      }
+      return novo;
+    });
+  };
 
+  const buscarBibtex = async (doi: string): Promise<string | null> => {
     try {
-      const res = await fetch(`https://doi.org/${doi}`, {
-        headers: { Accept: "application/x-bibtex" },
-      });
+      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}/transform/application/x-bibtex`);
       const bibtex = await res.text();
       setBibtexMap(prev => ({ ...prev, [doi]: bibtex }));
-    } catch (err) {
+      return bibtex;
+    } catch {
       setBibtexMap(prev => ({ ...prev, [doi]: "Erro ao obter BibTeX" }));
+      return null;
     }
   };
 
@@ -80,63 +87,74 @@ const Trabalhos = () => {
     const bibtex = bibtexMap[doi];
     if (bibtex) {
       await navigator.clipboard.writeText(bibtex);
-      setAvisos(prev => ({ ...prev, [doi]: true }));
-      setTimeout(() => {
-        setAvisos(prev => ({ ...prev, [doi]: false }));
-      }, 3000);
+      alert("BibTeX copiado para a área de transferência!");
     }
   };
 
-  const baixarBibtex = async (doi: string, titulo?: string) => {
-    if (!bibtexMap[doi]) {
-      await buscarBibtex(doi);
+  const baixarBibtex = async (doi: string) => {
+  let bib = bibtexMap[doi];
+  if (!bib) {
+    bib = await buscarBibtex(doi);
+  }
+  if (bib) {
+    const blob = new Blob([bib], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `trabalho_${doi.replace(/\//g, "_")}.bib`;  // <-- corrigido aqui
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
+
+
+  const baixarSelecionados = async () => {
+    if (selecionados.size === 0) return;
+
+    const bibs: string[] = [];
+
+    for (const doi of selecionados) {
+      let bib = bibtexMap[doi];
+      if (!bib) {
+        bib = await buscarBibtex(doi);
+      }
+      if (bib) {
+        bibs.push(bib);
+      }
     }
-    const bibtex = bibtexMap[doi];
-    if (bibtex) {
-      const blob = new Blob([bibtex], { type: "text/plain" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      const nomeArquivo = `${titulo?.replace(/\s+/g, "_") || doi}.bib`;
-      link.download = nomeArquivo;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+
+    if (bibs.length === 0) {
+      alert("Nenhum BibTeX encontrado.");
+      return;
     }
+
+    const conteudo = bibs.join("\n\n");
+    const blob = new Blob([conteudo], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "trabalhos_selecionados.bib";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  // Função para buscar resumo via CrossRef pelo DOI
   const buscarResumo = async (doi: string) => {
-    if (resumos[doi]) return; // já tem resumo
-
     try {
-      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, {
-        headers: { Accept: "application/json" },
-      });
+      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
       const data = await res.json();
-      const abs = data.message.abstract || "Resumo não disponível.";
-      setResumos(prev => ({ ...prev, [doi]: abs }));
+      const resumo = data?.message?.abstract || "Resumo não disponível.";
+      setResumos(prev => ({ ...prev, [doi]: resumo }));
     } catch {
-      setResumos(prev => ({ ...prev, [doi]: "Erro ao obter resumo." }));
+      setResumos(prev => ({ ...prev, [doi]: "Erro ao carregar o resumo." }));
     }
   };
-
-  // Controla a expansão do card e busca resumo quando expandir
-  const toggleExpandir = (idx: number) => {
-    setCardsExpandidos(prev => ({ ...prev, [idx]: !prev[idx] }));
-  };
-
-  const onExpandClick = (idx: number, doi?: string) => {
-    toggleExpandir(idx);
-    if (doi) buscarResumo(doi);
-  };
-
-  const palavrasSelecionadas = filtrosSelecionados.filter(f => palavrasChave.includes(f));
-  const tiposSelecionados = filtrosSelecionados.filter(f => tiposPublicacao.includes(f));
-
   const trabalhosFiltrados = trabalhos.filter(t => {
     const summary = t?.["work-summary"]?.[0];
     const titulo = summary?.title?.title?.value?.toLowerCase() || "";
     const tipo = summary?.type || "";
+
+    const palavrasSelecionadas = filtrosSelecionados.filter(f => palavrasChave.includes(f));
+    const tiposSelecionados = filtrosSelecionados.filter(f => tiposPublicacao.includes(f));
 
     const passouPalavra =
       palavrasSelecionadas.length === 0 ||
@@ -153,7 +171,6 @@ const Trabalhos = () => {
       <div className="py-8">
         <h1 className="text-2xl font-bold mb-6">Trabalhos Acadêmicos</h1>
 
-        {/* Dropdown de filtros */}
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="flex items-center gap-2">
@@ -191,7 +208,6 @@ const Trabalhos = () => {
           </PopoverContent>
         </Popover>
 
-        {/* Filtros ativos */}
         <div className="flex flex-wrap gap-2 mt-4 mb-6">
           {filtrosSelecionados.map((f, idx) => (
             <Badge
@@ -205,106 +221,101 @@ const Trabalhos = () => {
           ))}
         </div>
 
-        {/* Lista de trabalhos */}
-        {trabalhosFiltrados.length > 0 ? (
-          <div className="grid gap-4">
-            {trabalhosFiltrados.map((t, idx) => {
-              const summary = t?.["work-summary"]?.[0];
-              const titulo = summary?.title?.title?.value;
-              const ano = summary?.["publication-date"]?.year?.value;
-              const tipo = summary?.type;
-              const dois = summary?.["external-ids"]?.["external-id"] || [];
-              const doi = dois.find(id => id["external-id-type"] === "doi")?.["external-id-value"];
+        <Button onClick={baixarSelecionados} className="mb-6">
+          Baixar selecionados (.bib)
+        </Button>
 
-              return (
-                <Card key={idx}>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-center">
+        <div className="grid gap-4">
+          {trabalhosFiltrados.map((t, idx) => {
+            const summary = t?.["work-summary"]?.[0];
+            const titulo = summary?.title?.title?.value || "Sem título";
+            const ano = summary?.["publication-date"]?.year?.value;
+            const tipo = summary?.type;
+            const dois = summary?.["external-ids"]?.["external-id"] || [];
+            const doi = dois.find(id => id["external-id-type"] === "doi")?.["external-id-value"];
+
+            if (!doi) return null;
+
+            return (
+              <Card key={doi}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-start">
+                      <Checkbox
+                        checked={selecionados.has(doi)}
+                        onCheckedChange={() => toggleSelecionado(doi)}
+                        className="mr-2 mt-1"
+                      />
                       <div>
-                        <p className="font-semibold">{titulo || "Sem título"}</p>
+                        <p className="font-semibold">{titulo}</p>
                         {ano && <p className="text-sm text-gray-500">Publicado em {ano}</p>}
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {tipo && (
-                          <Badge
-                            variant="outline"
-                            className="bg-green-50 text-green-600 border-green-200 capitalize"
-                          >
-                            {tipo.replace(/-/g, " ")}
-                          </Badge>
-                        )}
-                        <button
-                          onClick={() => onExpandClick(idx, doi)}
-                          aria-expanded={!!cardsExpandidos[idx]}
-                          aria-label={cardsExpandidos[idx] ? "Esconder resumo" : "Mostrar resumo"}
-                          className="ml-4 p-1 rounded hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {tipo && (
+                        <Badge
+                          variant="outline"
+                          className="bg-green-50 text-green-600 border-green-200 capitalize"
+                        >
+                          {tipo.replace(/-/g, " ")}
+                        </Badge>
+                      )}
+                      <button
+                        onClick={() => {
+                          setCardsExpandidos(prev => ({ ...prev, [idx]: !prev[idx] }));
+                          if (!resumos[doi]) buscarResumo(doi);
+                        }}
+                        className="ml-4 p-1 rounded hover:bg-gray-200"
+                      >
+                        <ChevronRight
+                          size={20}
                           style={{
                             transform: cardsExpandidos[idx] ? "rotate(90deg)" : "rotate(0deg)",
                             transition: "transform 0.2s ease",
                           }}
-                        >
-                          <ChevronRight size={20} />
-                        </button>
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {cardsExpandidos[idx] && (
+                    <div className="mt-4 text-sm prose max-w-none">
+                      {resumos[doi] ? (
+                        <div
+                          dangerouslySetInnerHTML={{
+                            __html: resumos[doi].replace(/<\/?jats:[^>]*>/g, ""),
+                          }}
+                        />
+                      ) : (
+                        <p>Carregando resumo...</p>
+                      )}
+                      {doi && (
+                        <p className="mt-2">
+                          <a
+                            href={`https://doi.org/${doi}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 underline"
+                          >
+                            Ler artigo completo
+                          </a>
+                        </p>
+                      )}
+                      <div className="mt-4 flex space-x-4">
+                        <Button size="sm" variant="outline" onClick={() => copiarBibtex(doi)}>
+                          Copiar BibTeX
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => baixarBibtex(doi)}>
+                          Baixar .bib
+                        </Button>
                       </div>
                     </div>
-
-                    {cardsExpandidos[idx] && (
-                      <div className="mt-4 text-sm prose max-w-none">
-                        {resumos[doi] ? (
-                          <div
-                            dangerouslySetInnerHTML={{
-                              __html: resumos[doi].replace(/<\/?jats:[^>]*>/g, ""),
-                            }}
-                          />
-                        ) : (
-                          <p>Carregando resumo...</p>
-                        )}
-                        {doi && (
-                          <p className="mt-2">
-                            <a
-                              href={`https://doi.org/${doi}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 underline"
-                            >
-                              Ler artigo completo
-                            </a>
-                          </p>
-                        )}
-
-                        <div className="mt-4 flex space-x-4 items-center">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => copiarBibtex(doi)}
-                          >
-                            Copiar BibTeX
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => baixarBibtex(doi, titulo)}
-                          >
-                            Baixar BibTeX
-                          </Button>
-
-                          {/* Aviso de cópia */}
-                          {avisos[doi] && (
-                            <span className="ml-4 text-green-600 font-medium">
-                              Copiado!
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        ) : (
-          <p>Nenhum trabalho encontrado para os filtros selecionados.</p>
-        )}
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </Layout>
   );
