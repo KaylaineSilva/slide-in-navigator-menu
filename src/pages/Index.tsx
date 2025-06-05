@@ -65,14 +65,28 @@ const Index = () => {
         ) || [];
       setEmpregos(empregosExtraidos);
       setAfiliacoes(empregosExtraidos);
-      console.log(empregosExtraidos);
     } catch (error) {
       console.error("Erro ao buscar dados do ORCID:", error);
       alert("Erro ao buscar o ORCID informado.");
     }
   };
 
-  // Executa ao carregar
+  const handleClear = () => {
+    sessionStorage.removeItem("orcid");
+    setOrcidId("");
+    setInputOrcid("");
+    setNome("");
+    setSobrenome("");
+    setBiografia("");
+    setOutrosNomes([]);
+    setPalavrasChave([]);
+    setEnderecos([]);
+    setEmails([]);
+    setAfiliacoes([]);
+    setEmpregos([]);
+    navigate("/", { replace: true });
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const orcidFromUrl = params.get("orcid");
@@ -90,7 +104,6 @@ const Index = () => {
   return (
     <Layout>
       <div className="mb-8 pt-8 lg:pt-0">
-        {/* Input */}
         <div className="mb-6 flex gap-4 items-center">
           <input
             type="text"
@@ -100,9 +113,17 @@ const Index = () => {
             className="border border-gray-300 px-4 py-2 rounded-md w-full max-w-md"
           />
           <Button onClick={() => fetchORCIDData(inputOrcid)}>Buscar</Button>
+          {orcidId && (
+            <Button
+              variant="outline"
+              onClick={handleClear}
+              className="text-red-600 border-red-300"
+            >
+              Apagar
+            </Button>
+          )}
         </div>
 
-        {/* Cartões */}
         {orcidId && (
           <>
             {/* ORCID */}
@@ -124,7 +145,8 @@ const Index = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="mt-2 text-blue-500 border-blue-300">
+                      className="mt-2 text-blue-500 border-blue-300"
+                    >
                       Pré-visualizar o registro público
                     </Button>
                   </div>
@@ -132,6 +154,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
+            {/* Nomes */}
             <section className="scroll-mt-16 mt-6">
               <Card>
                 <CardContent className="p-6">
@@ -147,7 +170,8 @@ const Index = () => {
                     </div>
                     <Badge
                       variant="outline"
-                      className="bg-green-50 text-green-600 border-green-200">
+                      className="bg-green-50 text-green-600 border-green-200"
+                    >
                       Visível
                     </Badge>
                   </div>
@@ -155,6 +179,7 @@ const Index = () => {
               </Card>
             </section>
 
+            {/* Outros nomes */}
             <section className="scroll-mt-16 mt-6">
               <Card>
                 <CardContent className="p-6">
@@ -176,6 +201,7 @@ const Index = () => {
               </Card>
             </section>
 
+            {/* E-mails */}
             <section className="scroll-mt-16 mt-6">
               <Card>
                 <CardContent className="p-6">
@@ -223,8 +249,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            {/* Seções */}
-
+            {/* Biografia */}
             <section className="scroll-mt-16 mt-6">
               <Card>
                 <CardContent className="p-6">
@@ -238,6 +263,7 @@ const Index = () => {
               </Card>
             </section>
 
+            {/* Palavras-chave */}
             <section className="scroll-mt-16 mt-6">
               <Card>
                 <CardContent className="p-6">
@@ -252,7 +278,8 @@ const Index = () => {
                         <Badge
                           key={idx}
                           variant="outline"
-                          className="bg-green-50 text-green-600 border-green-200">
+                          className="bg-green-50 text-green-600 border-green-200"
+                        >
                           {palavra}
                         </Badge>
                       ))
@@ -264,6 +291,7 @@ const Index = () => {
               </Card>
             </section>
 
+            {/* Endereços */}
             <section className="scroll-mt-16 mt-6">
               <Card>
                 <CardContent className="p-6">
@@ -285,6 +313,7 @@ const Index = () => {
               </Card>
             </section>
 
+            {/* Empregos */}
             <section className="scroll-mt-16 mt-6">
               <Card>
                 <CardContent className="p-6">
@@ -328,6 +357,7 @@ const Index = () => {
               </Card>
             </section>
 
+            {/* Afiliações */}
             <section className="scroll-mt-16 mt-6">
               <Card>
                 <CardContent className="p-6">
