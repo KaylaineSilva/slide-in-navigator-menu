@@ -2,319 +2,321 @@ import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import Layout from "../components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-
-type ExternalId = {
-  "external-id-type": string;
-  "external-id-value": string;
-};
-
-type Citation = {
-  citation: string;
-  style_fullname: string;
-  style_shortname: string;
-};
-
-const email = "seu_email@exemplo.com";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 const Trabalhos = () => {
   const location = useLocation();
-  const orcid = new URLSearchParams(location.search).get("orcid");
-
-  // Estados
-  const [trabalhos, setTrabalhos] = useState<any[]>([]);
+  const [trabalhos, setTrabalhos] = useState([]);
   const [palavrasChave, setPalavrasChave] = useState<string[]>([]);
   const [tiposPublicacao, setTiposPublicacao] = useState<string[]>([]);
-  const [filtrosPalavras, setFiltrosPalavras] = useState<string[]>([]);
-  const [filtrosTipos, setFiltrosTipos] = useState<string[]>([]);
+  const [filtrosSelecionados, setFiltrosSelecionados] = useState<string[]>([]);
+  const [bibtexMap, setBibtexMap] = useState<Record<string, string>>({});
+  const [cardsExpandidos, setCardsExpandidos] = useState<Record<number, boolean>>({});
+  const [resumos, setResumos] = useState<Record<string, string>>({});
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
 
-  // Modal para citações
-  const [modalAberto, setModalAberto] = useState(false);
-  const [modalDOIs, setModalDOIs] = useState<string[]>([]); // DOIs para modal (1 ou vários)
-  const [citacoesModal, setCitacoesModal] = useState<Record<string, Citation[]>>({});
-  const [loadingCitacoesModal, setLoadingCitacoesModal] = useState(false);
-  const [citacoesPorEstilo, setCitacoesPorEstilo] = useState<Record<string, Citation[]>>({});
+  const orcid = new URLSearchParams(location.search).get("orcid");
 
-
-  // Buscar trabalhos e metadados
   useEffect(() => {
-    if (!orcid) return;
+    if (orcid) {
+      fetch(`https://pub.orcid.org/v3.0/${orcid}/works`, {
+        headers: { Accept: "application/json" },
+      })
+        .then(res => res.json())
+        .then(data => {
+          const listaTrabalhos = data["group"] || [];
+          setTrabalhos(listaTrabalhos);
 
-    fetch(`https://pub.orcid.org/v3.0/${orcid}/works`, {
-      headers: { Accept: "application/json" },
-    })
-      .then(res => res.json())
-      .then(data => {
-        setTrabalhos(data.group || []);
-        const tipos = new Set<string>();
-        (data.group || []).forEach(t => {
-          const tipo = t?.["work-summary"]?.[0]?.type;
-          if (tipo) tipos.add(tipo);
+          const tipos = new Set<string>();
+          listaTrabalhos.forEach(t => {
+            const tipo = t?.["work-summary"]?.[0]?.type;
+            if (tipo) tipos.add(tipo);
+          });
+          setTiposPublicacao(Array.from(tipos));
         });
-        setTiposPublicacao(Array.from(tipos));
-      });
 
-    fetch(`https://pub.orcid.org/v3.0/${orcid}/person`, {
-      headers: { Accept: "application/json" },
-    })
-      .then(res => res.json())
-      .then(data => {
-        const palavras: string[] = data?.keywords?.keyword?.map((k: { content: string }) => k.content) || [];
-        setPalavrasChave(palavras);
-      });
+      fetch(`https://pub.orcid.org/v3.0/${orcid}/person`, {
+        headers: { Accept: "application/json" },
+      })
+        .then(res => res.json())
+        .then(data => {
+          const palavras = data?.keywords?.keyword?.map(k => k.content) || [];
+          setPalavrasChave(palavras);
+        });
+    }
   }, [orcid]);
 
-  // Toggle filtros
-  const toggleFiltroPalavra = (p: string) => {
-    setFiltrosPalavras(prev =>
-      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
-    );
-  };
-  const toggleFiltroTipo = (t: string) => {
-    setFiltrosTipos(prev =>
-      prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+  const toggleFiltro = (valor: string) => {
+    setFiltrosSelecionados(prev =>
+      prev.includes(valor) ? prev.filter(f => f !== valor) : [...prev, valor]
     );
   };
 
-  // Toggle seleção trabalho
   const toggleSelecionado = (doi: string) => {
     setSelecionados(prev => {
       const novo = new Set(prev);
-      if (novo.has(doi)) novo.delete(doi);
-      else novo.add(doi);
+      if (novo.has(doi)) {
+        novo.delete(doi);
+      } else {
+        novo.add(doi);
+      }
       return novo;
     });
   };
 
-  // Filtra trabalhos
-  const trabalhosFiltrados = trabalhos.filter(t => {
-    const summary = t?.["work-summary"]?.[0];
-    if (!summary) return false;
-    const titulo = summary?.title?.title?.value?.toLowerCase() || "";
-    const tipo = summary?.type || "";
-
-    const passouPalavra =
-      filtrosPalavras.length === 0 ||
-      filtrosPalavras.some(p => titulo.includes(p.toLowerCase()));
-
-    const passouTipo =
-      filtrosTipos.length === 0 || filtrosTipos.includes(tipo);
-
-    return passouPalavra && passouTipo;
-  });
-
-  // --- Função que busca citações CiteAs para um DOI ---
-  async function fetchCitations(doi: string): Promise<Citation[]> {
+  const buscarBibtex = async (doi: string): Promise<string | null> => {
     try {
-      const url = `https://api.citeas.org/product/${encodeURIComponent(doi)}?email=${encodeURIComponent(email)}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Erro CiteAs");
-      const data = await res.json();
-      return data.citations || [];
+      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}/transform/application/x-bibtex`);
+      const bibtex = await res.text();
+      setBibtexMap(prev => ({ ...prev, [doi]: bibtex }));
+      return bibtex;
     } catch {
-      return [];
+      setBibtexMap(prev => ({ ...prev, [doi]: "Erro ao obter BibTeX" }));
+      return null;
     }
-  }
-
-  // Abre modal para 1 DOI
-  const abrirModalUmDOI = async (doi: string) => {
-    setLoadingCitacoesModal(true);
-    setModalAberto(true);
-    setModalDOIs([doi]);
-    const cit = await fetchCitations(doi);
-    setCitacoesModal({ [doi]: cit });
-    setLoadingCitacoesModal(false);
   };
 
-  // Abre modal para múltiplos DOIs selecionados
-  const abrirModalMultiDOIs = async () => {
-  if (selecionados.size === 0) return;
-  setLoadingCitacoesModal(true);
-  setModalAberto(true);
-  const doiArray = Array.from(selecionados);
-  setModalDOIs(doiArray);
+  const copiarBibtex = async (doi: string) => {
+    if (!bibtexMap[doi]) {
+      await buscarBibtex(doi);
+    }
+    const bibtex = bibtexMap[doi];
+    if (bibtex) {
+      await navigator.clipboard.writeText(bibtex);
+      alert("BibTeX copiado para a área de transferência!");
+    }
+  };
 
-  // Busca citações para cada DOI
-  const todasCitacoes: Citation[] = [];
-  for (const d of doiArray) {
-    const cits = await fetchCitations(d);
-    todasCitacoes.push(...cits);
+  const baixarBibtex = async (doi: string) => {
+  let bib = bibtexMap[doi];
+  if (!bib) {
+    bib = await buscarBibtex(doi);
   }
-
-  const agrupado: Record<string, Citation[]> = {};
-  todasCitacoes.forEach(c => {
-    if (!agrupado[c.style_shortname]) agrupado[c.style_shortname] = [];
-    agrupado[c.style_shortname].push(c);
-  });
-
-  setCitacoesPorEstilo(agrupado);
-  setLoadingCitacoesModal(false);
+  if (bib) {
+    const blob = new Blob([bib], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `trabalho_${doi.replace(/\//g, "_")}.bib`;  // <-- corrigido aqui
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 };
 
 
-  // Baixar .bib da citação escolhida
-  const baixarBib = (doi: string, citation: Citation) => {
-    const bibContent = `%% Estilo: ${citation.style_fullname} (${citation.style_shortname})\n${citation.citation}`;
-    const blob = new Blob([bibContent], { type: "text/x-bibtex" });
+  const baixarSelecionados = async () => {
+    if (selecionados.size === 0) return;
+
+    const bibs: string[] = [];
+
+    for (const doi of selecionados) {
+      let bib = bibtexMap[doi];
+      if (!bib) {
+        bib = await buscarBibtex(doi);
+      }
+      if (bib) {
+        bibs.push(bib);
+      }
+    }
+
+    if (bibs.length === 0) {
+      alert("Nenhum BibTeX encontrado.");
+      return;
+    }
+
+    const conteudo = bibs.join("\n\n");
+    const blob = new Blob([conteudo], { type: "text/plain" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `${doi.replace(/\//g, "_")}_${citation.style_shortname}.bib`;
+    link.download = "trabalhos_selecionados.bib";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Nova função para baixar arquivo .bib único com todas citações do estilo escolhido
-const baixarBibMulti = (styleShortname: string) => {
-  const cits = citacoesPorEstilo[styleShortname];
-  if (!cits || cits.length === 0) return;
+  const buscarResumo = async (doi: string) => {
+    try {
+      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
+      const data = await res.json();
+      const resumo = data?.message?.abstract || "Resumo não disponível.";
+      setResumos(prev => ({ ...prev, [doi]: resumo }));
+    } catch {
+      setResumos(prev => ({ ...prev, [doi]: "Erro ao carregar o resumo." }));
+    }
+  };
+  const trabalhosFiltrados = trabalhos.filter(t => {
+    const summary = t?.["work-summary"]?.[0];
+    const titulo = summary?.title?.title?.value?.toLowerCase() || "";
+    const tipo = summary?.type || "";
 
-  // Junta todas as citações desse estilo, colocando um comentário com o nome do estilo no começo
-  const bibContent = `%% Estilo: ${cits[0].style_fullname} (${styleShortname})\n\n` +
-    cits.map(c => c.citation).join('\n\n');
+    const palavrasSelecionadas = filtrosSelecionados.filter(f => palavrasChave.includes(f));
+    const tiposSelecionados = filtrosSelecionados.filter(f => tiposPublicacao.includes(f));
 
-  const blob = new Blob([bibContent], { type: "text/x-bibtex" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `citacoes_selecionadas_${styleShortname}.bib`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
+    const passouPalavra =
+      palavrasSelecionadas.length === 0 ||
+      palavrasSelecionadas.some(p => titulo.includes(p.toLowerCase()));
 
-  // Modal UI simples
-  const Modal = () => {
-  if (!modalAberto) return null;
+    const passouTipo =
+      tiposSelecionados.length === 0 || tiposSelecionados.includes(tipo);
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 9999,
-        overflowY: "auto"
-      }}
-      onClick={() => setModalAberto(false)}
-    >
-      <div
-        style={{
-          background: "white",
-          padding: 20,
-          maxWidth: 400,
-          maxHeight: "80vh",
-          overflowY: "auto",
-          borderRadius: 8,
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <h2>Estilos disponíveis para baixar</h2>
-
-        {loadingCitacoesModal && <p>Carregando citações...</p>}
-
-        {!loadingCitacoesModal && Object.keys(citacoesPorEstilo).length === 0 && (
-          <p>Nenhuma citação encontrada para os trabalhos selecionados.</p>
-        )}
-
-        {!loadingCitacoesModal && Object.entries(citacoesPorEstilo).map(([style, cits]) => (
-          <div key={style} style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>{cits[0].style_fullname}</span>
-            <Button size="sm" onClick={() => baixarBibMulti(style)}>Baixar .bib</Button>
-          </div>
-        ))}
-
-        <Button variant="outline" onClick={() => setModalAberto(false)}>Fechar</Button>
-      </div>
-    </div>
-  );
-};
+    return passouPalavra && passouTipo;
+  });
 
   return (
     <Layout>
-      <div className="p-6 space-y-4">
-        <h1 className="text-2xl font-bold mb-4">Trabalhos do ORCID {orcid}</h1>
+      <div className="py-8">
+        <h1 className="text-2xl font-bold mb-6">Trabalhos Acadêmicos</h1>
 
-        {/* Filtros separados */}
-        <div>
-          <h3 className="font-semibold">Filtrar por palavras-chave:</h3>
-          <div className="flex flex-wrap gap-3 mb-4">
-            {palavrasChave.map(p => (
-              <Button
-                key={p}
-                variant={filtrosPalavras.includes(p) ? "default" : "outline"}
-                onClick={() => toggleFiltroPalavra(p)}
-              >
-                {p}
-              </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="flex items-center gap-2">
+              Filtrar por palavra-chave ou tipo
+              <ChevronDown size={16} />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 max-h-96 overflow-y-auto">
+            <div className="mb-2 font-semibold text-sm">Palavras-chave</div>
+            {palavrasChave.map((palavra, idx) => (
+              <div key={`p-${idx}`} className="flex items-center space-x-2 mb-1">
+                <Checkbox
+                  id={`palavra-${idx}`}
+                  checked={filtrosSelecionados.includes(palavra)}
+                  onCheckedChange={() => toggleFiltro(palavra)}
+                />
+                <label htmlFor={`palavra-${idx}`} className="text-sm">
+                  {palavra}
+                </label>
+              </div>
             ))}
-          </div>
+            <div className="mt-4 mb-2 font-semibold text-sm">Tipos de publicação</div>
+            {tiposPublicacao.map((tipo, idx) => (
+              <div key={`t-${idx}`} className="flex items-center space-x-2 mb-1">
+                <Checkbox
+                  id={`tipo-${idx}`}
+                  checked={filtrosSelecionados.includes(tipo)}
+                  onCheckedChange={() => toggleFiltro(tipo)}
+                />
+                <label htmlFor={`tipo-${idx}`} className="text-sm capitalize">
+                  {tipo.replace(/-/g, " ")}
+                </label>
+              </div>
+            ))}
+          </PopoverContent>
+        </Popover>
 
-          <h3 className="font-semibold">Filtrar por tipo de publicação:</h3>
-          <div className="flex flex-wrap gap-3 mb-6">
-            {tiposPublicacao.map(t => (
-              <Button
-                key={t}
-                variant={filtrosTipos.includes(t) ? "default" : "outline"}
-                onClick={() => toggleFiltroTipo(t)}
-              >
-                {t}
-              </Button>
-            ))}
-          </div>
+        <div className="flex flex-wrap gap-2 mt-4 mb-6">
+          {filtrosSelecionados.map((f, idx) => (
+            <Badge
+              key={idx}
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => toggleFiltro(f)}
+            >
+              {f} ✕
+            </Badge>
+          ))}
         </div>
 
-        <Button
-          onClick={abrirModalMultiDOIs}
-          disabled={selecionados.size === 0}
-          className="mb-6"
-        >
-          Baixar citações selecionadas (.bib)
+        <Button onClick={baixarSelecionados} className="mb-6">
+          Baixar selecionados (.bib)
         </Button>
 
-        {trabalhosFiltrados.length === 0 && <p>Nenhum trabalho encontrado.</p>}
+        <div className="grid gap-4">
+          {trabalhosFiltrados.map((t, idx) => {
+            const summary = t?.["work-summary"]?.[0];
+            const titulo = summary?.title?.title?.value || "Sem título";
+            const ano = summary?.["publication-date"]?.year?.value;
+            const tipo = summary?.type;
+            const dois = summary?.["external-ids"]?.["external-id"] || [];
+            const doi = dois.find(id => id["external-id-type"] === "doi")?.["external-id-value"];
 
-        {trabalhosFiltrados.map((t, idx) => {
-          const summary = t["work-summary"][0];
-          const dois: ExternalId[] = summary["external-ids"]?.["external-id"] || [];
-          const doi = dois.find(id => id["external-id-type"] === "doi")?.["external-id-value"];
-          const titulo = summary.title.title.value || "Sem título";
-          const tipo = summary.type || "N/A";
-          const ano = summary["publication-date"]?.year?.value || "N/A";
+            if (!doi) return null;
 
-          const isSelecionado = doi ? selecionados.has(doi) : false;
+            return (
+              <Card key={doi}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-start">
+                      <Checkbox
+                        checked={selecionados.has(doi)}
+                        onCheckedChange={() => toggleSelecionado(doi)}
+                        className="mr-2 mt-1"
+                      />
+                      <div>
+                        <p className="font-semibold">{titulo}</p>
+                        {ano && <p className="text-sm text-gray-500">Publicado em {ano}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {tipo && (
+                        <Badge
+                          variant="outline"
+                          className="bg-green-50 text-green-600 border-green-200 capitalize"
+                        >
+                          {tipo.replace(/-/g, " ")}
+                        </Badge>
+                      )}
+                      <button
+                        onClick={() => {
+                          setCardsExpandidos(prev => ({ ...prev, [idx]: !prev[idx] }));
+                          if (!resumos[doi]) buscarResumo(doi);
+                        }}
+                        className="ml-4 p-1 rounded hover:bg-gray-200"
+                      >
+                        <ChevronRight
+                          size={20}
+                          style={{
+                            transform: cardsExpandidos[idx] ? "rotate(90deg)" : "rotate(0deg)",
+                            transition: "transform 0.2s ease",
+                          }}
+                        />
+                      </button>
+                    </div>
+                  </div>
 
-          return (
-            <Card key={idx} className="mb-4">
-              <CardContent>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold">{titulo}</h3>
-                  <Checkbox
-                    checked={isSelecionado}
-                    onCheckedChange={() => doi && toggleSelecionado(doi)}
-                    aria-label="Selecionar trabalho"
-                  />
-                </div>
-
-                <p><strong>Tipo:</strong> {tipo} | <strong>Ano:</strong> {ano}</p>
-                {doi && <p><strong>DOI:</strong> {doi}</p>}
-
-                <div className="mt-2 space-x-2">
-                  <Button size="sm" onClick={() => abrirModalUmDOI(doi)}>Citações CiteAs</Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-
+                  {cardsExpandidos[idx] && (
+                    <div className="mt-4 text-sm prose max-w-none">
+                      {resumos[doi] ? (
+                        <div
+                          dangerouslySetInnerHTML={{
+                            __html: resumos[doi].replace(/<\/?jats:[^>]*>/g, ""),
+                          }}
+                        />
+                      ) : (
+                        <p>Carregando resumo...</p>
+                      )}
+                      {doi && (
+                        <p className="mt-2">
+                          <a
+                            href={`https://doi.org/${doi}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 underline"
+                          >
+                            Ler artigo completo
+                          </a>
+                        </p>
+                      )}
+                      <div className="mt-4 flex space-x-4">
+                        <Button size="sm" variant="outline" onClick={() => copiarBibtex(doi)}>
+                          Copiar BibTeX
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => baixarBibtex(doi)}>
+                          Baixar .bib
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
-
-      <Modal />
     </Layout>
   );
 };
