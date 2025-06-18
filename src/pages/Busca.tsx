@@ -185,7 +185,7 @@ const Busca = () => {
 
   const handleVerPerfil = (orcid: string) => {
     sessionStorage.setItem("orcid", orcid);
-    navigate(`/?orcid=${orcid}`);
+    navigate(`/perfil?orcid=${orcid}`);
   };
 
   const renderLoadingOrEmpty = () => {

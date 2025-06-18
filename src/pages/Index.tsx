@@ -33,7 +33,7 @@ const Index = () => {
   const fetchORCIDData = async (id: string) => {
     try {
       sessionStorage.setItem("orcid", id);
-      navigate(`/?orcid=${id}`);
+      navigate(`/perfil?orcid=${id}`);
 
       const personRes = await fetch(`https://pub.orcid.org/v3.0/${id}/person`, {
         headers: { Accept: "application/json" },
