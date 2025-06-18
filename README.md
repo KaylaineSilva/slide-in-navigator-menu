@@ -1,3 +1,39 @@
+# Cadê meu Orcid?
+
+## Repositório de desenvolvimento
+
+O trabalho foi realizado em outro repositório, para utilizar das funcionalidades do Lovable e permitir um "deploy" simplificado.
+### Link Repositório
+Link para o repositório usado para desenvolvimento: https://github.com/KaylaineSilva/slide-in-navigator-menu
+### Projeto em deploy
+
+Link: https://lovable.dev/projects/69d93dfd-e553-4341-917c-06ac1ad2e97a
+
+
+## Trello
+
+A ferramenta utilizada para organização de tarefas e controle do cronograma foi o Trello. 
+
+Segue link do quadro: https://trello.com/invite/b/68239d16aac4f7226cd186da/ATTIf37ac01394ea35a3b9738af7679d7f7698838BFB/eng-soft
+
+## Documento de Requisitos.
+
+Existe uma versão em PDF neste repositório, e também link direto para a documentação:
+
+https://docs.google.com/document/d/1dUXXQvLfG2D_NTV4DtmmWijaKjUWNY3P/edit
+
+## Documentação das Sprints 
+
+Criamos um documento para revisão e documentação das Sprints. O PDF se encontra também neste repositório e o link direto:
+
+https://docs.google.com/document/d/1yTWKeX07f9j3_gHHbNyx1Q1B4aA1m_7mf9Rfr0-c2fc/edit?pli=1&tab=t.0
+
+
+
+
+
+
+
 # Welcome to your Lovable project
 
 ## Project info
