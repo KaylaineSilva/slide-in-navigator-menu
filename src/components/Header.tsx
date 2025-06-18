@@ -20,7 +20,7 @@ const Header = () => {
 
   const goToProfile = () => {
     if (orcidId) {
-      navigate(`/?orcid=${orcidId}`);
+      navigate(`/perfil?orcid=${orcidId}`);
     } else {
       alert("Nenhum ORCID carregado. Pesquise um primeiro.");
     }
